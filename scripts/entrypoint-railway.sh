@@ -26,6 +26,10 @@ EOF
 chown node:node "$CONFIG"
 echo "Wrote gateway config at $CONFIG (origin: https://$DOMAIN)"
 
-# Use -m to preserve environment (OPENCLAW_STATE_DIR, OPENCLAW_GATEWAY_TOKEN,
-# RAILWAY_*, NODE_ENV, etc.) when switching to the node user.
-exec su -m -s /bin/sh node -c "exec node /app/openclaw.mjs gateway run --bind lan --port $PORT"
+# Drop to the node user, forwarding only the env vars the gateway needs.
+exec su -s /bin/sh node -c "
+  OPENCLAW_STATE_DIR='$STATE_DIR' \
+  OPENCLAW_GATEWAY_TOKEN='${OPENCLAW_GATEWAY_TOKEN:-}' \
+  NODE_ENV='${NODE_ENV:-production}' \
+  exec node /app/openclaw.mjs gateway run --bind lan --port $PORT
+"
