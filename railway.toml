@@ -2,6 +2,7 @@
 dockerfilePath = "Dockerfile.railway"
 
 [deploy]
+startCommand = "/app/entrypoint-railway.sh"
 healthcheckPath = "/healthz"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
