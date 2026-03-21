@@ -17,6 +17,10 @@ cat > "$CONFIG" <<EOF
 {
   "gateway": {
     "mode": "local",
+    "auth": {
+      "mode": "token"
+    },
+    "trustedProxies": ["100.64.0.0/10"],
     "controlUi": {
       "allowedOrigins": ["https://$DOMAIN"]
     }
@@ -30,6 +34,8 @@ echo "Wrote gateway config at $CONFIG (origin: https://$DOMAIN)"
 exec su -s /bin/sh node -c "
   OPENCLAW_STATE_DIR='$STATE_DIR' \
   OPENCLAW_GATEWAY_TOKEN='${OPENCLAW_GATEWAY_TOKEN:-}' \
+  ANTHROPIC_API_KEY='${ANTHROPIC_API_KEY:-}' \
+  ANTHROPIC_OAUTH_TOKEN='${ANTHROPIC_OAUTH_TOKEN:-}' \
   NODE_ENV='${NODE_ENV:-production}' \
   exec node /app/openclaw.mjs gateway run --bind lan --port $PORT
 "
