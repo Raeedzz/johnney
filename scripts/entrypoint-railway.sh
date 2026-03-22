@@ -11,12 +11,13 @@ mkdir -p "$STATE_DIR"
 # created by a previous deploy running as root.
 chown -R node:node "$STATE_DIR"
 
-# Always write/overwrite config so the gateway picks up the current
-# Railway domain. Previous deploys may have left a stale config on
-# the persistent volume that lacks allowedOrigins, which makes the
-# gateway refuse to start with --bind lan.
 DOMAIN="${RAILWAY_PUBLIC_DOMAIN:-localhost:$PORT}"
-cat > "$CONFIG" <<EOF
+
+# Seed config only if none exists yet. Once the gateway or web UI writes
+# channels/plugins/agents into the config, we must not overwrite it on
+# every container restart — that wipes user-added channels like WhatsApp.
+if [ ! -f "$CONFIG" ]; then
+  cat > "$CONFIG" <<EOF
 {
   "gateway": {
     "mode": "local",
@@ -30,8 +31,11 @@ cat > "$CONFIG" <<EOF
   }
 }
 EOF
-chown node:node "$CONFIG"
-echo "Wrote gateway config at $CONFIG (origin: https://$DOMAIN)"
+  chown node:node "$CONFIG"
+  echo "Seeded gateway config at $CONFIG (origin: https://$DOMAIN)"
+else
+  echo "Using existing config at $CONFIG"
+fi
 
 # Drop to the node user, forwarding only the env vars the gateway needs.
 exec su -s /bin/sh node -c "
