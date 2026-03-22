@@ -21,7 +21,7 @@ cat > "$CONFIG" <<EOF
   "gateway": {
     "mode": "local",
     "auth": {
-      "mode": "none"
+      "mode": "token"
     },
     "trustedProxies": ["100.64.0.0/10"],
     "controlUi": {
