@@ -6,7 +6,10 @@ CONFIG="$STATE_DIR/openclaw.json"
 PORT="${OPENCLAW_GATEWAY_PORT:-${PORT:-8080}}"
 
 mkdir -p "$STATE_DIR"
-chown node:node "$STATE_DIR"
+# Recursively fix ownership on the state dir so the node user can write to
+# all subdirectories (devices/, agents/, sessions/, etc.) that may have been
+# created by a previous deploy running as root.
+chown -R node:node "$STATE_DIR"
 
 # Always write/overwrite config so the gateway picks up the current
 # Railway domain. Previous deploys may have left a stale config on
