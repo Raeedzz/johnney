@@ -65,8 +65,15 @@ ENV OPENCLAW_PREFER_PNPM=1
 RUN pnpm ui:build
 
 FROM build AS runtime-assets
+ARG OPENCLAW_EXTENSIONS
 RUN CI=true pnpm prune --prod && \
     find dist -type f \( -name '*.d.ts' -o -name '*.d.mts' -o -name '*.d.cts' -o -name '*.map' \) -delete
+# Install production deps for opted-in extensions after prune.
+RUN for ext in $OPENCLAW_EXTENSIONS; do \
+      if [ -f "extensions/$ext/package.json" ]; then \
+        cd "extensions/$ext" && npm install --omit=dev && cd /app; \
+      fi; \
+    done
 
 # ── Runtime base images ─────────────────────────────────────────
 FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS base-default
