@@ -168,7 +168,9 @@ RUN if [ -n "$OPENCLAW_INSTALL_DOCKER_CLI" ]; then \
     fi
 
 RUN ln -sf /app/openclaw.mjs /usr/local/bin/openclaw \
- && chmod 755 /app/openclaw.mjs
+ && chmod 755 /app/openclaw.mjs \
+ && mkdir -p /app/src \
+ && ln -sf /app/dist/plugin-sdk /app/src/plugin-sdk
 
 COPY scripts/entrypoint-railway.sh /app/entrypoint-railway.sh
 RUN chmod +x /app/entrypoint-railway.sh
