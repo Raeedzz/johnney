@@ -102,7 +102,10 @@ WORKDIR /app
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      procps hostname curl git lsof openssl && \
+      procps hostname curl git lsof openssl wget gnupg2 && \
+    wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y ./google-chrome-stable_current_amd64.deb && \
+    rm google-chrome-stable_current_amd64.deb && \
     rm -rf /var/lib/apt/lists/*
 
 RUN chown node:node /app

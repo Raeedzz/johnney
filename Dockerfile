@@ -193,15 +193,6 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
       chown -R node:node /home/node/.cache/ms-playwright; \
     fi
 
-# Install Google Chrome for agent browser automation / web access.
-RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
-    apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wget gnupg2 && \
-    wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y ./google-chrome-stable_current_amd64.deb && \
-    rm google-chrome-stable_current_amd64.deb
-
 # Optionally install Docker CLI for sandbox container management.
 # Build with: docker build --build-arg OPENCLAW_INSTALL_DOCKER_CLI=1 ...
 # Adds ~50MB. Only the CLI is installed — no Docker daemon.

@@ -28,6 +28,9 @@ if [ ! -f "$CONFIG" ]; then
     "controlUi": {
       "allowedOrigins": ["https://$DOMAIN"]
     }
+  },
+  "browser": {
+    "noSandbox": true
   }
 }
 EOF
