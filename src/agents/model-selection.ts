@@ -23,7 +23,12 @@ import {
   normalizeProviderIdForAuth,
 } from "./provider-id.js";
 
-const log = createSubsystemLogger("model-selection");
+let log: ReturnType<typeof createSubsystemLogger> | null = null;
+
+function getLog(): ReturnType<typeof createSubsystemLogger> {
+  log ??= createSubsystemLogger("model-selection");
+  return log;
+}
 
 export type ModelRef = {
   provider: string;
@@ -292,7 +297,7 @@ export function resolveConfiguredModelRef(params: {
 
       // Default to anthropic if no provider is specified, but warn as this is deprecated.
       const safeTrimmed = sanitizeForLog(trimmed);
-      log.warn(
+      getLog().warn(
         `Model "${safeTrimmed}" specified without provider. Falling back to "anthropic/${safeTrimmed}". Please use "anthropic/${safeTrimmed}" in your config.`,
       );
       return { provider: "anthropic", model: trimmed };
@@ -310,7 +315,9 @@ export function resolveConfiguredModelRef(params: {
     // User specified a model but it could not be resolved — warn before falling back.
     const safe = sanitizeForLog(trimmed);
     const safeFallback = sanitizeForLog(`${params.defaultProvider}/${params.defaultModel}`);
-    log.warn(`Model "${safe}" could not be resolved. Falling back to default "${safeFallback}".`);
+    getLog().warn(
+      `Model "${safe}" could not be resolved. Falling back to default "${safeFallback}".`,
+    );
   }
   // Before falling back to the hardcoded default, check if the default provider
   // is actually available. If it isn't but other providers are configured, prefer
@@ -505,6 +512,44 @@ export function buildAllowedModelSet(params: {
   }
 
   return { allowAny: false, allowedCatalog, allowedKeys };
+}
+
+export function buildConfiguredModelCatalog(params: { cfg: OpenClawConfig }): ModelCatalogEntry[] {
+  const providers = params.cfg.models?.providers;
+  if (!providers || typeof providers !== "object") {
+    return [];
+  }
+
+  const catalog: ModelCatalogEntry[] = [];
+  for (const [providerRaw, provider] of Object.entries(providers)) {
+    const providerId = normalizeProviderId(providerRaw);
+    if (!providerId || !Array.isArray(provider?.models)) {
+      continue;
+    }
+    for (const model of provider.models) {
+      const id = typeof model?.id === "string" ? model.id.trim() : "";
+      if (!id) {
+        continue;
+      }
+      const name = typeof model?.name === "string" && model.name.trim() ? model.name.trim() : id;
+      const contextWindow =
+        typeof model?.contextWindow === "number" && model.contextWindow > 0
+          ? model.contextWindow
+          : undefined;
+      const reasoning = typeof model?.reasoning === "boolean" ? model.reasoning : undefined;
+      const input = Array.isArray(model?.input) ? model.input : undefined;
+      catalog.push({
+        provider: providerId,
+        id,
+        name,
+        contextWindow,
+        reasoning,
+        input,
+      });
+    }
+  }
+
+  return catalog;
 }
 
 export type ModelRefStatus = {
