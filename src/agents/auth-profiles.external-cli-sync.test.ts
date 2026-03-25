@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthProfileStore, OAuthCredential } from "./auth-profiles/types.js";
 
 const mocks = vi.hoisted(() => ({
+  readClaudeCliCredentialsCached: vi.fn<() => OAuthCredential | null>(() => null),
   readCodexCliCredentialsCached: vi.fn<() => OAuthCredential | null>(() => null),
   readQwenCliCredentialsCached: vi.fn<() => OAuthCredential | null>(() => null),
   readMiniMaxCliCredentialsCached: vi.fn<() => OAuthCredential | null>(() => null),
@@ -9,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 
 let syncExternalCliCredentials: typeof import("./auth-profiles/external-cli-sync.js").syncExternalCliCredentials;
 let shouldReplaceStoredOAuthCredential: typeof import("./auth-profiles/external-cli-sync.js").shouldReplaceStoredOAuthCredential;
+let CLAUDE_CLI_PROFILE_ID: typeof import("./auth-profiles/constants.js").CLAUDE_CLI_PROFILE_ID;
 let CODEX_CLI_PROFILE_ID: typeof import("./auth-profiles/constants.js").CODEX_CLI_PROFILE_ID;
 let OPENAI_CODEX_DEFAULT_PROFILE_ID: typeof import("./auth-profiles/constants.js").OPENAI_CODEX_DEFAULT_PROFILE_ID;
 let QWEN_CLI_PROFILE_ID: typeof import("./auth-profiles/constants.js").QWEN_CLI_PROFILE_ID;
@@ -40,6 +42,12 @@ function makeStore(profileId?: string, credential?: OAuthCredential): AuthProfil
 function getProviderCases() {
   return [
     {
+      label: "Claude",
+      profileId: CLAUDE_CLI_PROFILE_ID,
+      provider: "anthropic" as const,
+      readMock: mocks.readClaudeCliCredentialsCached,
+    },
+    {
       label: "Codex",
       profileId: OPENAI_CODEX_DEFAULT_PROFILE_ID,
       provider: "openai-codex" as const,
@@ -64,10 +72,12 @@ function getProviderCases() {
 describe("syncExternalCliCredentials", () => {
   beforeEach(async () => {
     vi.resetModules();
+    mocks.readClaudeCliCredentialsCached.mockReset().mockReturnValue(null);
     mocks.readCodexCliCredentialsCached.mockReset().mockReturnValue(null);
     mocks.readQwenCliCredentialsCached.mockReset().mockReturnValue(null);
     mocks.readMiniMaxCliCredentialsCached.mockReset().mockReturnValue(null);
     vi.doMock("./cli-credentials.js", () => ({
+      readClaudeCliCredentialsCached: mocks.readClaudeCliCredentialsCached,
       readCodexCliCredentialsCached: mocks.readCodexCliCredentialsCached,
       readQwenCliCredentialsCached: mocks.readQwenCliCredentialsCached,
       readMiniMaxCliCredentialsCached: mocks.readMiniMaxCliCredentialsCached,
@@ -75,6 +85,7 @@ describe("syncExternalCliCredentials", () => {
     ({ syncExternalCliCredentials, shouldReplaceStoredOAuthCredential } =
       await import("./auth-profiles/external-cli-sync.js"));
     ({
+      CLAUDE_CLI_PROFILE_ID,
       CODEX_CLI_PROFILE_ID,
       OPENAI_CODEX_DEFAULT_PROFILE_ID,
       QWEN_CLI_PROFILE_ID,
@@ -122,44 +133,46 @@ describe("syncExternalCliCredentials", () => {
     });
   });
 
-  it.each([{ providerLabel: "Codex" }, { providerLabel: "Qwen" }, { providerLabel: "MiniMax" }])(
-    "syncs $providerLabel CLI credentials into the target auth profile",
-    ({ providerLabel }) => {
-      const providerCase = getProviderCases().find((entry) => entry.label === providerLabel);
-      expect(providerCase).toBeDefined();
-      const current = providerCase!;
-      const expires = Date.now() + 60_000;
-      current.readMock.mockReturnValue(
-        makeOAuthCredential({
-          provider: current.provider,
-          access: `${current.provider}-access-token`,
-          refresh: `${current.provider}-refresh-token`,
-          expires,
-          accountId: "acct_123",
-        }),
-      );
-
-      const store = makeStore();
-
-      const mutated = syncExternalCliCredentials(store);
-
-      expect(mutated).toBe(true);
-      expect(current.readMock).toHaveBeenCalledWith(
-        expect.objectContaining({ ttlMs: expect.any(Number) }),
-      );
-      expect(store.profiles[current.profileId]).toMatchObject({
-        type: "oauth",
+  it.each([
+    { providerLabel: "Claude" },
+    { providerLabel: "Codex" },
+    { providerLabel: "Qwen" },
+    { providerLabel: "MiniMax" },
+  ])("syncs $providerLabel CLI credentials into the target auth profile", ({ providerLabel }) => {
+    const providerCase = getProviderCases().find((entry) => entry.label === providerLabel);
+    expect(providerCase).toBeDefined();
+    const current = providerCase!;
+    const expires = Date.now() + 60_000;
+    current.readMock.mockReturnValue(
+      makeOAuthCredential({
         provider: current.provider,
         access: `${current.provider}-access-token`,
         refresh: `${current.provider}-refresh-token`,
         expires,
         accountId: "acct_123",
-      });
-      if (current.legacyProfileId) {
-        expect(store.profiles[current.legacyProfileId]).toBeUndefined();
-      }
-    },
-  );
+      }),
+    );
+
+    const store = makeStore();
+
+    const mutated = syncExternalCliCredentials(store);
+
+    expect(mutated).toBe(true);
+    expect(current.readMock).toHaveBeenCalledWith(
+      expect.objectContaining({ ttlMs: expect.any(Number) }),
+    );
+    expect(store.profiles[current.profileId]).toMatchObject({
+      type: "oauth",
+      provider: current.provider,
+      access: `${current.provider}-access-token`,
+      refresh: `${current.provider}-refresh-token`,
+      expires,
+      accountId: "acct_123",
+    });
+    if (current.legacyProfileId) {
+      expect(store.profiles[current.legacyProfileId]).toBeUndefined();
+    }
+  });
 
   it("refreshes stored Codex expiry from external CLI even when the cached profile looks fresh", () => {
     const staleExpiry = Date.now() + 30 * 60_000;
@@ -195,43 +208,45 @@ describe("syncExternalCliCredentials", () => {
     });
   });
 
-  it.each([{ providerLabel: "Codex" }, { providerLabel: "Qwen" }, { providerLabel: "MiniMax" }])(
-    "does not overwrite newer stored $providerLabel credentials",
-    ({ providerLabel }) => {
-      const providerCase = getProviderCases().find((entry) => entry.label === providerLabel);
-      expect(providerCase).toBeDefined();
-      const current = providerCase!;
-      const staleExpiry = Date.now() + 30 * 60_000;
-      const freshExpiry = Date.now() + 5 * 24 * 60 * 60_000;
-      current.readMock.mockReturnValue(
-        makeOAuthCredential({
-          provider: current.provider,
-          access: `stale-${current.provider}-access-token`,
-          refresh: `stale-${current.provider}-refresh-token`,
-          expires: staleExpiry,
-          accountId: "acct_789",
-        }),
-      );
+  it.each([
+    { providerLabel: "Claude" },
+    { providerLabel: "Codex" },
+    { providerLabel: "Qwen" },
+    { providerLabel: "MiniMax" },
+  ])("does not overwrite newer stored $providerLabel credentials", ({ providerLabel }) => {
+    const providerCase = getProviderCases().find((entry) => entry.label === providerLabel);
+    expect(providerCase).toBeDefined();
+    const current = providerCase!;
+    const staleExpiry = Date.now() + 30 * 60_000;
+    const freshExpiry = Date.now() + 5 * 24 * 60 * 60_000;
+    current.readMock.mockReturnValue(
+      makeOAuthCredential({
+        provider: current.provider,
+        access: `stale-${current.provider}-access-token`,
+        refresh: `stale-${current.provider}-refresh-token`,
+        expires: staleExpiry,
+        accountId: "acct_789",
+      }),
+    );
 
-      const store = makeStore(
-        current.profileId,
-        makeOAuthCredential({
-          provider: current.provider,
-          access: `fresh-${current.provider}-access-token`,
-          refresh: `fresh-${current.provider}-refresh-token`,
-          expires: freshExpiry,
-          accountId: "acct_789",
-        }),
-      );
-
-      const mutated = syncExternalCliCredentials(store);
-
-      expect(mutated).toBe(false);
-      expect(store.profiles[current.profileId]).toMatchObject({
+    const store = makeStore(
+      current.profileId,
+      makeOAuthCredential({
+        provider: current.provider,
         access: `fresh-${current.provider}-access-token`,
         refresh: `fresh-${current.provider}-refresh-token`,
         expires: freshExpiry,
-      });
-    },
-  );
+        accountId: "acct_789",
+      }),
+    );
+
+    const mutated = syncExternalCliCredentials(store);
+
+    expect(mutated).toBe(false);
+    expect(store.profiles[current.profileId]).toMatchObject({
+      access: `fresh-${current.provider}-access-token`,
+      refresh: `fresh-${current.provider}-refresh-token`,
+      expires: freshExpiry,
+    });
+  });
 });

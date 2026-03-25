@@ -1,9 +1,11 @@
 import {
+  readClaudeCliCredentialsCached,
   readCodexCliCredentialsCached,
   readQwenCliCredentialsCached,
   readMiniMaxCliCredentialsCached,
 } from "../cli-credentials.js";
 import {
+  CLAUDE_CLI_PROFILE_ID,
   EXTERNAL_CLI_SYNC_TTL_MS,
   OPENAI_CODEX_DEFAULT_PROFILE_ID,
   QWEN_CLI_PROFILE_ID,
@@ -69,7 +71,21 @@ export function shouldReplaceStoredOAuthCredential(
   return !hasNewerStoredOAuthCredential(existing, incoming);
 }
 
+function readClaudeCliOAuthCredentialsCached(): OAuthCredential | null {
+  const cred = readClaudeCliCredentialsCached({ ttlMs: EXTERNAL_CLI_SYNC_TTL_MS });
+  // Only sync OAuth credentials; token-type credentials are handled by the setup-token flow.
+  if (!cred || cred.type !== "oauth") {
+    return null;
+  }
+  return cred;
+}
+
 const EXTERNAL_CLI_SYNC_PROVIDERS: ExternalCliSyncProvider[] = [
+  {
+    profileId: CLAUDE_CLI_PROFILE_ID,
+    provider: "anthropic",
+    readCredentials: readClaudeCliOAuthCredentialsCached,
+  },
   {
     profileId: QWEN_CLI_PROFILE_ID,
     provider: "qwen-portal",
@@ -127,8 +143,8 @@ function syncExternalCliCredentialsForProvider(
 }
 
 /**
- * Sync OAuth credentials from external CLI tools (Qwen Code CLI, MiniMax CLI, Codex CLI)
- * into the store.
+ * Sync OAuth credentials from external CLI tools (Claude CLI, Qwen Code CLI,
+ * MiniMax CLI, Codex CLI) into the store.
  *
  * Returns true if any credentials were updated.
  */
