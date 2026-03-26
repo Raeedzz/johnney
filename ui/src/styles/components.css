@@ -4445,7 +4445,7 @@ details[open] > .ov-expandable-toggle::after {
 
 .usage-indicator {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
   font-size: 11px;
   padding: 3px 10px;
@@ -4455,32 +4455,44 @@ details[open] > .ov-expandable-toggle::after {
   margin-left: 8px;
 }
 
+.usage-indicator__label {
+  color: var(--fg-muted, #888);
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.usage-indicator__window {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.usage-indicator__window-label {
+  color: var(--fg-muted, #888);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
 .usage-indicator__bar-wrap {
-  width: 64px;
-  height: 8px;
+  width: 48px;
+  height: 6px;
   background: var(--bg-inset, rgba(0, 0, 0, 0.25));
-  border-radius: 4px;
+  border-radius: 3px;
   overflow: hidden;
 }
 
 .usage-indicator__bar {
   height: 100%;
-  border-radius: 4px;
+  border-radius: 3px;
   transition: width 0.4s ease;
 }
 
-.usage-indicator__text {
-  color: var(--fg, #ccc);
-  white-space: nowrap;
+.usage-indicator__pct {
+  color: var(--fg-muted, #999);
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
-}
-
-.usage-indicator__text small {
-  color: var(--fg-muted, #888);
-}
-
-.usage-indicator__cost {
-  color: var(--color-warning, #f39c12);
-  font-weight: 500;
-  margin-left: 4px;
+  min-width: 24px;
 }

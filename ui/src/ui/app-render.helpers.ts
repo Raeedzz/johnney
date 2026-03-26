@@ -11,7 +11,7 @@ import {
   resolveChatModelOverrideValue,
   resolveChatModelSelectState,
 } from "./chat-model-select-state.ts";
-import { renderUsageIndicator, setUsageSessionKey } from "./chat/usage-indicator.ts";
+import { renderUsageIndicator } from "./chat/usage-indicator.ts";
 import { ChatState, loadChatHistory } from "./controllers/chat.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import { icons } from "./icons.ts";
@@ -172,7 +172,6 @@ export function renderChatSessionSelect(state: AppViewState) {
 }
 
 export function renderChatControls(state: AppViewState) {
-  setUsageSessionKey(state.sessionKey);
   const hideCron = state.sessionsHideCron ?? true;
   const hiddenCronCount = hideCron
     ? countHiddenCronSessions(state.sessionKey, state.sessionsResult)
@@ -326,7 +325,7 @@ export function renderChatControls(state: AppViewState) {
       >
         ${renderCronFilterIcon(hiddenCronCount)}
       </button>
-      ${renderUsageIndicator(state.chatModelCatalog ?? [])}
+      ${renderUsageIndicator()}
     </div>
   `;
 }
@@ -509,7 +508,7 @@ export function switchChatSession(state: AppViewState, nextSessionKey: string) {
     nextSessionKey,
     true,
   );
-  setUsageSessionKey(nextSessionKey);
+
   void loadChatHistory(state as unknown as ChatState);
   void refreshSessionOptions(state);
 }

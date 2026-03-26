@@ -1,56 +1,41 @@
 import { html, nothing, type TemplateResult } from "lit";
 import type { GatewayBrowserClient } from "../gateway.ts";
-import type { ModelCatalogEntry } from "../types.ts";
 
-type SessionUsageEntry = {
-  key: string;
-  model?: string;
-  modelProvider?: string;
-  usage: {
-    input: number;
-    output: number;
-    cacheRead: number;
-    cacheWrite: number;
-    totalTokens: number;
-    totalCost: number;
-  } | null;
+type UsageWindow = {
+  label: string;
+  usedPercent: number;
+  resetAt?: number;
 };
 
-type SessionsUsageResult = {
-  sessions: SessionUsageEntry[];
+type ProviderUsageSnapshot = {
+  provider: string;
+  displayName: string;
+  windows: UsageWindow[];
+  plan?: string;
+  error?: string;
+};
+
+type UsageSummary = {
+  updatedAt: number;
+  providers: ProviderUsageSnapshot[];
 };
 
 type UsageIndicatorState = {
   loading: boolean;
-  session: SessionUsageEntry | null;
+  summary: UsageSummary | null;
   error: string | null;
-  lastFetchAt: number;
-  lastSessionKey: string;
 };
 
-const REFRESH_INTERVAL_MS = 30_000;
+const REFRESH_INTERVAL_MS = 60_000;
 
 let cachedState: UsageIndicatorState = {
   loading: false,
-  session: null,
+  summary: null,
   error: null,
-  lastFetchAt: 0,
-  lastSessionKey: "",
 };
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let activeClient: GatewayBrowserClient | null = null;
-let activeSessionKey = "";
 let requestUpdateFn: (() => void) | null = null;
-
-function formatTokens(count: number): string {
-  if (count >= 1_000_000) {
-    return `${(count / 1_000_000).toFixed(1)}M`;
-  }
-  if (count >= 1_000) {
-    return `${(count / 1_000).toFixed(1)}k`;
-  }
-  return String(count);
-}
 
 function barColor(percent: number): string {
   if (percent >= 90) {
@@ -62,50 +47,50 @@ function barColor(percent: number): string {
   return "var(--color-accent, #3498db)";
 }
 
-function resolveContextWindow(
-  session: SessionUsageEntry,
-  catalog: ModelCatalogEntry[],
-): number | null {
-  const model = session.model?.trim().toLowerCase();
-  const provider = session.modelProvider?.trim().toLowerCase();
-  if (!model) {
-    return null;
+function formatResetTime(resetAt: number | undefined): string {
+  if (!resetAt) {
+    return "";
   }
-  for (const entry of catalog) {
-    if (
-      entry.id.toLowerCase() === model &&
-      (!provider || entry.provider.toLowerCase() === provider)
-    ) {
-      return entry.contextWindow ?? null;
-    }
+  const diffMs = resetAt - Date.now();
+  if (diffMs <= 0) {
+    return "resetting";
   }
-  return null;
+  const mins = Math.ceil(diffMs / 60_000);
+  if (mins < 60) {
+    return `${mins}m`;
+  }
+  const hrs = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return rem > 0 ? `${hrs}h${rem}m` : `${hrs}h`;
 }
 
-async function fetchSessionUsage(client: GatewayBrowserClient, sessionKey: string): Promise<void> {
+function renderWindow(w: UsageWindow): TemplateResult {
+  const pct = Math.round(w.usedPercent);
+  const resetStr = formatResetTime(w.resetAt);
+  const title = `${w.label}: ${pct}% used${resetStr ? ` (resets in ${resetStr})` : ""}`;
+
+  return html`
+    <div class="usage-indicator__window" title=${title}>
+      <span class="usage-indicator__window-label">${w.label}</span>
+      <div class="usage-indicator__bar-wrap">
+        <div
+          class="usage-indicator__bar"
+          style="width:${Math.min(pct, 100)}%;background:${barColor(pct)}"
+        ></div>
+      </div>
+      <span class="usage-indicator__pct">${pct}%</span>
+    </div>
+  `;
+}
+
+async function fetchUsageStatus(client: GatewayBrowserClient): Promise<void> {
   if (cachedState.loading) {
-    return;
-  }
-  if (!sessionKey) {
     return;
   }
   cachedState = { ...cachedState, loading: true };
   try {
-    const today = new Date().toISOString().slice(0, 10);
-    const result = await client.request<SessionsUsageResult>("sessions.usage", {
-      key: sessionKey,
-      startDate: "2020-01-01",
-      endDate: today,
-      limit: 1,
-    });
-    const session = result?.sessions?.[0] ?? null;
-    cachedState = {
-      loading: false,
-      session,
-      error: null,
-      lastFetchAt: Date.now(),
-      lastSessionKey: sessionKey,
-    };
+    const summary = await client.request<UsageSummary>("usage.status", {});
+    cachedState = { loading: false, summary, error: null };
   } catch (err) {
     cachedState = {
       ...cachedState,
@@ -122,10 +107,10 @@ export function startUsagePolling(client: GatewayBrowserClient, requestUpdate: (
   stopUsagePolling();
   activeClient = client;
   requestUpdateFn = requestUpdate;
-  void fetchSessionUsage(client, activeSessionKey).then(requestUpdate);
+  void fetchUsageStatus(client).then(requestUpdate);
   refreshTimer = setInterval(() => {
     if (activeClient) {
-      void fetchSessionUsage(activeClient, activeSessionKey).then(() => requestUpdateFn?.());
+      void fetchUsageStatus(activeClient).then(() => requestUpdateFn?.());
     }
   }, REFRESH_INTERVAL_MS);
 }
@@ -139,61 +124,21 @@ export function stopUsagePolling(): void {
   requestUpdateFn = null;
 }
 
-export function setUsageSessionKey(sessionKey: string): void {
-  if (sessionKey === activeSessionKey) {
-    return;
-  }
-  activeSessionKey = sessionKey;
-  if (activeClient && requestUpdateFn) {
-    void fetchSessionUsage(activeClient, sessionKey).then(() => requestUpdateFn?.());
-  }
-}
-
-export function renderUsageIndicator(
-  catalog: ModelCatalogEntry[],
-): TemplateResult | typeof nothing {
-  const { session } = cachedState;
-  if (!session?.usage) {
+export function renderUsageIndicator(): TemplateResult | typeof nothing {
+  const { summary } = cachedState;
+  if (!summary || summary.providers.length === 0) {
     return nothing;
   }
 
-  const u = session.usage;
-  const ctxWindow = resolveContextWindow(session, catalog);
-  const pct =
-    ctxWindow && ctxWindow > 0
-      ? Math.min(Math.round((u.totalTokens / ctxWindow) * 100), 100)
-      : null;
-
-  const costStr =
-    u.totalCost > 0
-      ? u.totalCost < 0.01
-        ? `$${u.totalCost.toFixed(4)}`
-        : `$${u.totalCost.toFixed(2)}`
-      : "";
-
-  const tooltipLines = [
-    `Tokens: ${formatTokens(u.totalTokens)}${ctxWindow ? ` / ${formatTokens(ctxWindow)}` : ""}`,
-    `Input: ${formatTokens(u.input)}`,
-    `Output: ${formatTokens(u.output)}`,
-    u.cacheRead > 0 ? `Cache read: ${formatTokens(u.cacheRead)}` : null,
-    u.cacheWrite > 0 ? `Cache write: ${formatTokens(u.cacheWrite)}` : null,
-    costStr ? `Cost: ${costStr}` : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const anthropic = summary.providers.find((p) => p.provider === "anthropic");
+  if (!anthropic || anthropic.error || anthropic.windows.length === 0) {
+    return nothing;
+  }
 
   return html`
-    <div class="usage-indicator" title=${tooltipLines}>
-      <div class="usage-indicator__bar-wrap">
-        <div
-          class="usage-indicator__bar"
-          style="width:${pct ?? 0}%;background:${barColor(pct ?? 0)}"
-        ></div>
-      </div>
-      <span class="usage-indicator__text">
-        ${formatTokens(u.totalTokens)}${ctxWindow ? html`<small> / ${formatTokens(ctxWindow)}</small>` : nothing}
-        ${costStr ? html` <span class="usage-indicator__cost">${costStr}</span>` : nothing}
-      </span>
+    <div class="usage-indicator">
+      <span class="usage-indicator__label">Claude</span>
+      ${anthropic.windows.map(renderWindow)}
     </div>
   `;
 }
