@@ -4438,3 +4438,57 @@ details[open] > .ov-expandable-toggle::after {
     gap: 4px;
   }
 }
+
+/* ===========================================
+   Usage Indicator (chat header)
+   =========================================== */
+
+.usage-indicator {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+.usage-indicator__provider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: default;
+}
+
+.usage-indicator__label {
+  color: var(--fg-muted, #888);
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.usage-indicator__bar-wrap {
+  width: 48px;
+  height: 6px;
+  background: var(--bg-muted, #333);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.usage-indicator__bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.usage-indicator__pct {
+  color: var(--fg-muted, #888);
+  min-width: 28px;
+  white-space: nowrap;
+}
+
+.usage-indicator__pct small {
+  opacity: 0.7;
+}
+
+.usage-indicator__error {
+  color: var(--color-danger, #e74c3c);
+  font-size: 11px;
+}
