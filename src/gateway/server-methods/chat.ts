@@ -1639,7 +1639,10 @@ export const chatHandlers: GatewayRequestHandlers = {
             },
           });
         })
-        .catch((err) => {
+        .catch(async (err) => {
+          // Persist the user message even when the agent run fails so it
+          // doesn't vanish from chat history on reload.
+          await emitUserTranscriptUpdate();
           const error = errorShape(ErrorCodes.UNAVAILABLE, String(err));
           setGatewayDedupeEntry({
             dedupe: context.dedupe,
