@@ -1,5 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import type { GatewayBrowserClient } from "../gateway.ts";
+import type { ModelCatalogEntry } from "../types.ts";
 
 type SessionUsageEntry = {
   key: string;
@@ -51,14 +52,34 @@ function formatTokens(count: number): string {
   return String(count);
 }
 
-function formatCost(cost: number): string {
-  if (cost <= 0) {
-    return "";
+function barColor(percent: number): string {
+  if (percent >= 90) {
+    return "var(--color-danger, #e74c3c)";
   }
-  if (cost < 0.01) {
-    return `$${cost.toFixed(4)}`;
+  if (percent >= 70) {
+    return "var(--color-warning, #f39c12)";
   }
-  return `$${cost.toFixed(2)}`;
+  return "var(--color-accent, #3498db)";
+}
+
+function resolveContextWindow(
+  session: SessionUsageEntry,
+  catalog: ModelCatalogEntry[],
+): number | null {
+  const model = session.model?.trim().toLowerCase();
+  const provider = session.modelProvider?.trim().toLowerCase();
+  if (!model) {
+    return null;
+  }
+  for (const entry of catalog) {
+    if (
+      entry.id.toLowerCase() === model &&
+      (!provider || entry.provider.toLowerCase() === provider)
+    ) {
+      return entry.contextWindow ?? null;
+    }
+  }
+  return null;
 }
 
 async function fetchSessionUsage(client: GatewayBrowserClient, sessionKey: string): Promise<void> {
@@ -123,25 +144,35 @@ export function setUsageSessionKey(sessionKey: string): void {
     return;
   }
   activeSessionKey = sessionKey;
-  // Fetch immediately on session change
   if (activeClient && requestUpdateFn) {
     void fetchSessionUsage(activeClient, sessionKey).then(() => requestUpdateFn?.());
   }
 }
 
-export function renderUsageIndicator(): TemplateResult | typeof nothing {
+export function renderUsageIndicator(
+  catalog: ModelCatalogEntry[],
+): TemplateResult | typeof nothing {
   const { session } = cachedState;
   if (!session?.usage) {
     return nothing;
   }
 
   const u = session.usage;
-  const provider = session.modelProvider ?? "";
-  const model = session.model ?? "";
-  const label = model || provider || "session";
-  const costStr = formatCost(u.totalCost);
+  const ctxWindow = resolveContextWindow(session, catalog);
+  const pct =
+    ctxWindow && ctxWindow > 0
+      ? Math.min(Math.round((u.totalTokens / ctxWindow) * 100), 100)
+      : null;
 
-  const title = [
+  const costStr =
+    u.totalCost > 0
+      ? u.totalCost < 0.01
+        ? `$${u.totalCost.toFixed(4)}`
+        : `$${u.totalCost.toFixed(2)}`
+      : "";
+
+  const tooltipLines = [
+    `Tokens: ${formatTokens(u.totalTokens)}${ctxWindow ? ` / ${formatTokens(ctxWindow)}` : ""}`,
     `Input: ${formatTokens(u.input)}`,
     `Output: ${formatTokens(u.output)}`,
     u.cacheRead > 0 ? `Cache read: ${formatTokens(u.cacheRead)}` : null,
@@ -152,19 +183,17 @@ export function renderUsageIndicator(): TemplateResult | typeof nothing {
     .join("\n");
 
   return html`
-    <div class="usage-indicator" title=${title}>
-      <span class="usage-indicator__label">${label}</span>
-      <span class="usage-indicator__stat">
-        <small>in</small> ${formatTokens(u.input)}
+    <div class="usage-indicator" title=${tooltipLines}>
+      <div class="usage-indicator__bar-wrap">
+        <div
+          class="usage-indicator__bar"
+          style="width:${pct ?? 0}%;background:${barColor(pct ?? 0)}"
+        ></div>
+      </div>
+      <span class="usage-indicator__text">
+        ${formatTokens(u.totalTokens)}${ctxWindow ? html`<small> / ${formatTokens(ctxWindow)}</small>` : nothing}
+        ${costStr ? html` <span class="usage-indicator__cost">${costStr}</span>` : nothing}
       </span>
-      <span class="usage-indicator__stat">
-        <small>out</small> ${formatTokens(u.output)}
-      </span>
-      ${
-        costStr
-          ? html`<span class="usage-indicator__stat usage-indicator__cost">${costStr}</span>`
-          : nothing
-      }
     </div>
   `;
 }

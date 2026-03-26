@@ -326,7 +326,7 @@ export function renderChatControls(state: AppViewState) {
       >
         ${renderCronFilterIcon(hiddenCronCount)}
       </button>
-      ${renderUsageIndicator()}
+      ${renderUsageIndicator(state.chatModelCatalog ?? [])}
     </div>
   `;
 }
