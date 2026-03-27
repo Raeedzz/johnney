@@ -148,8 +148,7 @@ export function renderUsageIndicator(): TemplateResult | typeof nothing {
   const anthropic = summary.providers.find((p) => p.provider === "anthropic");
   const gemini = summary.providers.find((p) => p.provider === "google-gemini-cli");
 
-  const claudeWindows =
-    anthropic && !anthropic.error ? anthropic.windows.filter((w) => w.label === "5h") : [];
+  const claudeWindows = anthropic && !anthropic.error ? anthropic.windows : [];
   const geminiWindows = gemini && !gemini.error ? gemini.windows : [];
 
   if (claudeWindows.length === 0 && geminiWindows.length === 0) {
