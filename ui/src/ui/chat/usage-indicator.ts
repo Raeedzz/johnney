@@ -126,15 +126,20 @@ export function stopUsagePolling(): void {
 
 function renderProviderSection(
   label: string,
-  windows: UsageWindow[],
+  provider: ProviderUsageSnapshot | undefined,
 ): TemplateResult | typeof nothing {
-  if (windows.length === 0) {
+  if (!provider) {
     return nothing;
   }
+  const windows = provider.error ? [] : provider.windows;
   return html`
     <div class="usage-indicator">
       <span class="usage-indicator__label">${label}</span>
-      ${windows.map(renderWindow)}
+      ${
+        windows.length > 0
+          ? windows.map(renderWindow)
+          : html`<span class="usage-indicator__pct">${provider.error ? "N/A" : "—"}</span>`
+      }
     </div>
   `;
 }
@@ -148,15 +153,12 @@ export function renderUsageIndicator(): TemplateResult | typeof nothing {
   const anthropic = summary.providers.find((p) => p.provider === "anthropic");
   const gemini = summary.providers.find((p) => p.provider === "google-gemini-cli");
 
-  const claudeWindows = anthropic && !anthropic.error ? anthropic.windows : [];
-  const geminiWindows = gemini && !gemini.error ? gemini.windows : [];
-
-  if (claudeWindows.length === 0 && geminiWindows.length === 0) {
+  if (!anthropic && !gemini) {
     return nothing;
   }
 
   return html`
-    ${renderProviderSection("Claude", claudeWindows)}
-    ${renderProviderSection("Google", geminiWindows)}
+    ${renderProviderSection("Claude", anthropic)}
+    ${renderProviderSection("Google", gemini)}
   `;
 }
