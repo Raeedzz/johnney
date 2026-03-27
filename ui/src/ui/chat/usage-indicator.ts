@@ -124,6 +124,21 @@ export function stopUsagePolling(): void {
   requestUpdateFn = null;
 }
 
+function renderProviderSection(
+  label: string,
+  windows: UsageWindow[],
+): TemplateResult | typeof nothing {
+  if (windows.length === 0) {
+    return nothing;
+  }
+  return html`
+    <div class="usage-indicator">
+      <span class="usage-indicator__label">${label}</span>
+      ${windows.map(renderWindow)}
+    </div>
+  `;
+}
+
 export function renderUsageIndicator(): TemplateResult | typeof nothing {
   const { summary } = cachedState;
   if (!summary || summary.providers.length === 0) {
@@ -131,14 +146,18 @@ export function renderUsageIndicator(): TemplateResult | typeof nothing {
   }
 
   const anthropic = summary.providers.find((p) => p.provider === "anthropic");
-  if (!anthropic || anthropic.error || anthropic.windows.length === 0) {
+  const gemini = summary.providers.find((p) => p.provider === "google-gemini-cli");
+
+  const claudeWindows =
+    anthropic && !anthropic.error ? anthropic.windows.filter((w) => w.label === "5h") : [];
+  const geminiWindows = gemini && !gemini.error ? gemini.windows : [];
+
+  if (claudeWindows.length === 0 && geminiWindows.length === 0) {
     return nothing;
   }
 
   return html`
-    <div class="usage-indicator">
-      <span class="usage-indicator__label">Claude</span>
-      ${anthropic.windows.map(renderWindow)}
-    </div>
+    ${renderProviderSection("Claude", claudeWindows)}
+    ${renderProviderSection("Google", geminiWindows)}
   `;
 }
