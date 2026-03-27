@@ -561,6 +561,18 @@
       "types": "./dist/plugin-sdk/whatsapp-shared.d.ts",
       "default": "./dist/plugin-sdk/whatsapp-shared.js"
     },
+    "./plugin-sdk/whatsapp-login-qr": {
+      "types": "./dist/plugin-sdk/whatsapp-login-qr.d.ts",
+      "default": "./dist/plugin-sdk/whatsapp-login-qr.js"
+    },
+    "./plugin-sdk/whatsapp-action-runtime": {
+      "types": "./dist/plugin-sdk/whatsapp-action-runtime.d.ts",
+      "default": "./dist/plugin-sdk/whatsapp-action-runtime.js"
+    },
+    "./plugin-sdk/whatsapp": {
+      "types": "./dist/plugin-sdk/whatsapp.d.ts",
+      "default": "./dist/plugin-sdk/whatsapp.js"
+    },
     "./plugin-sdk/zalo": {
       "types": "./dist/plugin-sdk/zalo.d.ts",
       "default": "./dist/plugin-sdk/zalo.js"
